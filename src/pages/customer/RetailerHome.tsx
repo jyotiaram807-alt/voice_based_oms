@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getImageUrl } from "@/lib/imageUrl";
+import CartDrawer from "@/components/CartDrawer";
 
 type QtyState = Record<string, Record<number, string>>;
 
@@ -48,14 +49,14 @@ const RetailerHome = () => {
   const [qtyState, setQtyState]             = useState<QtyState>({});
   const [imgErrors, setImgErrors]           = useState<Record<string, boolean>>({});
 
-  // ── Auth guard ──────────────────────────────────────────────────────────
+  // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) { navigate("/"); return; }
     if (user?.role !== "retailer") navigate("/dealer");
   }, [loading, isAuthenticated, user, navigate]);
 
-  // ── Fetch products ──────────────────────────────────────────────────────
+  // ── Fetch products ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (loading || !isAuthenticated || user?.role !== "retailer" || !user?.dealer_id) return;
     setFetching(true);
@@ -114,7 +115,7 @@ const RetailerHome = () => {
     })();
   }, [loading, isAuthenticated, user]);
 
-  // ── Filters ─────────────────────────────────────────────────────────────
+  // ── Filters ─────────────────────────────────────────────────────────────────
   const brands = useMemo(() => {
     const s = new Set(products.map((p) => p.attributes?.brand || p.brand).filter(Boolean));
     return Array.from(s).sort();
@@ -146,7 +147,7 @@ const RetailerHome = () => {
     setFilterCategory("all"); setFilterDesign("");
   };
 
-  // ── Cart helpers ─────────────────────────────────────────────────────────
+  // ── Cart helpers ─────────────────────────────────────────────────────────────
   const getCartVariant = (productId: string, variantId: number) =>
     cart.items.find((i) => i.productId === productId)
       ?.variants.find((v) => v.variantId === variantId) ?? null;
@@ -167,7 +168,7 @@ const RetailerHome = () => {
     setIsCartOpen(true);
   };
 
-  // ── Place order ──────────────────────────────────────────────────────────
+  // ── Place order ──────────────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     if (!cart.items.length) { toast.error("Cart is empty"); return; }
     setIsSubmitting(true);
@@ -361,13 +362,13 @@ const RetailerHome = () => {
                               <span className="text-xs text-gray-900 items-center">{product.name}</span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <label htmlFor="" className="text-[11px] text-gray-400">Brand:</label>
+                              <label className="text-[11px] text-gray-400">Brand:</label>
                               {(product.brand || product.attributes?.brand) && (
                                 <p className="text-xs text-gray-900 items-center">
                                   {product.attributes?.brand || product.brand}
                                 </p>
                               )}
-                              <label htmlFor="" className=" text-[11px] text-gray-400 ">Color :</label>
+                              <label className="text-[11px] text-gray-400">Color:</label>
                               {productColor && (
                                 <span className="text-xs text-gray-900 items-center">
                                   {productColor}
@@ -543,8 +544,21 @@ const RetailerHome = () => {
         </div>
       </div>
 
-      {/* ── NEW Cart Drawer ── */}
-      
+      {/* ── Business-type-aware Cart Drawer ── */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cart={cart}
+        products={products}
+        cartTotal={cartTotal}
+        cartCount={cartCount}
+        isSubmitting={isSubmitting}
+        onPlaceOrder={handlePlaceOrder}
+        onRemoveVariant={removeVariant}
+        onUpdateVariantQty={updateVariantQty}
+        onRemoveProduct={removeFromCart}
+        getImageUrl={getImageUrl}
+      />
     </div>
   );
 };
