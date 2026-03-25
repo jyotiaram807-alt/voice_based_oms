@@ -181,7 +181,7 @@ const Cart = () => {
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden">
       <div className="w-64 fixed top-0 left-0 h-full z-10"><Sidebar /></div>
 
       <div className="flex-1 ml-64 flex flex-col">
@@ -294,7 +294,7 @@ const Cart = () => {
                           return (
                             <div key={item.productId} className="border border-gray-100 rounded-xl overflow-hidden">
                               {/* Product header */}
-                              <div className="flex items-center gap-3 p-3 bg-gray-50 border-b border-gray-100">
+                              <div className="flex items-center gap-3 p-3 border-b border-gray-100">
                                 {imageUrl ? (
                                   <img src={imageUrl} alt={item.productName} className="w-10 h-10 object-contain rounded-lg border bg-white flex-shrink-0" />
                                 ) : (

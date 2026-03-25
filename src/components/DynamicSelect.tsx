@@ -141,7 +141,7 @@ export const DynamicSelect = ({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={`Search ${fieldLabel}…`}
-                className="w-full text-sm px-2 py-1.5 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-gray-50"
+                className="w-full text-sm px-2 py-1.5 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
               />
             </div>
 

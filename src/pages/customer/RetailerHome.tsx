@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getImageUrl } from "@/lib/imageUrl";
-import CartDrawer from "@/components/CartDrawer";
 
 type QtyState = Record<string, Record<number, string>>;
 
@@ -222,8 +221,20 @@ const RetailerHome = () => {
     );
   }
 
+  const showSize = Number(user.business_type_id) === 2;
+
+  // ── Grid template strings — defined once, used consistently in both header and rows
+  // With size:    [size-badge] [price] [qty-input] [add/action-btn]
+  // Without size: [price] [qty-input] [add/action-btn]
+  //
+  // KEY FIX: replaced the old fixed "70px" button column (too narrow) with "minmax(52px,auto)"
+  // so the Add / trash button always has enough room. Also changed row gap from "gap-6"
+  // (24 px — way too wide, was pushing the button out of the card) to "gap-2" (8 px).
+  const gridWithSize    = "grid-cols-[36px_1fr_52px_minmax(52px,auto)]";
+  const gridWithoutSize = "grid-cols-[1fr_52px_minmax(52px,auto)]";
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden">
       <div className="w-64 fixed top-0 left-0 h-full z-10"><Sidebar /></div>
 
       <div className="flex-1 ml-64 flex flex-col">
@@ -242,25 +253,6 @@ const RetailerHome = () => {
                 </p>
               </div>
 
-              {/* ── Cart trigger button ── */}
-              <button
-                onClick={() => setIsCartOpen(true)}
-                className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm border ${
-                  cartCount > 0
-                    ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-blue-100"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600"
-                }`}
-              >
-                <ShoppingCart size={16} />
-                {cartCount > 0
-                  ? `₹${cartTotal.toLocaleString("en-IN")} · ${cartCount} item${cartCount !== 1 ? "s" : ""}`
-                  : "Cart"}
-                {cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {cartCount > 9 ? "9+" : cartCount}
-                  </span>
-                )}
-              </button>
             </div>
 
             {/* ── Filters ── */}
@@ -318,7 +310,7 @@ const RetailerHome = () => {
                 <button onClick={resetFilters} className="text-xs text-blue-600 hover:underline mt-2">Clear filters</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch">
                 {filtered.map((product) => {
                   const hasVariants  = (product.variants ?? []).length > 0;
                   const imageUrl     = getImageUrl(product.image);
@@ -329,16 +321,18 @@ const RetailerHome = () => {
                   const inCartCount  = cart.items.find((i) => i.productId === product.id)
                     ?.variants.reduce((s, v) => s + v.quantity, 0) ?? 0;
 
+                  // Pick the grid template for this product's cards
+                  const gridCols = showSize ? gridWithSize : gridWithoutSize;
+
                   return (
                     <div
                       key={product.id}
-                      className={`bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-all duration-200 ${
+                      className={`bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all duration-200 ${
                         inCartCount > 0
                           ? "border-blue-300 ring-1 ring-blue-100"
                           : "border-gray-100 hover:border-blue-200"
                       }`}
                     >
-                      {/* Image */}
                       {imageUrl && !imgErrors[product.id] ? (
                         <div className="w-full h-44 bg-gray-50 border-b overflow-hidden flex-shrink-0">
                           <img
@@ -348,7 +342,7 @@ const RetailerHome = () => {
                           />
                         </div>
                       ) : (
-                        <div className="w-full h-32 bg-gradient-to-br from-gray-50 to-gray-100 border-b flex items-center justify-center flex-shrink-0">
+                        <div className="w-full h-44 bg-gradient-to-br from-gray-50 to-gray-100 border-b flex items-center justify-center flex-shrink-0">
                           <Package className="h-10 w-10 text-gray-200" />
                         </div>
                       )}
@@ -361,16 +355,18 @@ const RetailerHome = () => {
                               <span className="text-[11px] text-gray-400">Name: </span>
                               <span className="text-xs text-gray-900 items-center">{product.name}</span>
                             </div>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <label className="text-[11px] text-gray-400">Brand:</label>
+                            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                              <label className="text-[10px] text-gray-400">Brand:</label>
                               {(product.brand || product.attributes?.brand) && (
-                                <p className="text-xs text-gray-900 items-center">
+                                <span className="text-[11px] text-gray-900 items-center">
                                   {product.attributes?.brand || product.brand}
-                                </p>
+                                </span>
                               )}
-                              <label className="text-[11px] text-gray-400">Color:</label>
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-gray-400">Color: </label>
                               {productColor && (
-                                <span className="text-xs text-gray-900 items-center">
+                                <span className="text-[12px] text-gray-900 items-center">
                                   {productColor}
                                 </span>
                               )}
@@ -380,9 +376,6 @@ const RetailerHome = () => {
                             <span className="text-sm font-bold text-blue-600">
                               ₹{product.price.toLocaleString("en-IN")}
                             </span>
-                            {inCartCount > 0 && (
-                              <p className="text-[10px] text-blue-500 font-medium">{inCartCount} in cart</p>
-                            )}
                           </div>
                         </div>
 
@@ -402,60 +395,75 @@ const RetailerHome = () => {
 
                         {/* ── Variant table ── */}
                         {hasVariants ? (
-                          <div className="mt-1">
-                            <div className="grid grid-cols-[40px_1fr_56px_44px] gap-1 text-[9px] font-semibold text-gray-400 uppercase tracking-wide px-1 mb-1">
-                              <span>Size</span><span>Price</span>
-                              <span className="text-center">Qty</span><span />
+                          <div className="mt-1 flex flex-col flex-1">
+                            {/*
+                              HEADER ROW
+                              Uses the same gridCols template as the data rows so columns
+                              always line up. Gap is gap-2 (was gap-4 in header / gap-6 in
+                              rows — the mismatch was part of why the button overflowed).
+                            */}
+                            <div className={`grid ${gridCols} gap-2 text-[9px] font-semibold text-gray-400 uppercase tracking-wide px-1 mb-1`}>
+                              {showSize && <span>Size</span>}
+                              <span>Price</span>
+                              <span className="text-center">Qty</span>
+                              <span />
                             </div>
-                            <div className="space-y-1 max-h-56 overflow-y-auto">
+
+                            <div className="space-y-1 flex-1">
                               {(product.variants ?? []).map((variant) => {
                                 const cv         = getCartVariant(product.id, variant.id);
                                 const outOfStock = variant.qty === 0;
                                 const curQty     = qtyState[product.id]?.[variant.id] ?? String(variant.qty);
-                                const vColor     = variant.color || productColor;
 
                                 return (
                                   <div
                                     key={variant.id}
-                                    className={`grid grid-cols-[40px_1fr_56px_44px] gap-1 items-center px-1.5 py-1 rounded-lg ${
+                                    /*
+                                      KEY FIX — gap-2 instead of gap-6.
+                                      gap-6 = 24 px between every column; with 4 columns that
+                                      consumed 72 px of gap alone, leaving the rightmost "Add"
+                                      button with no room and causing it to be clipped by the
+                                      card's overflow:hidden.  gap-2 = 8 px total (24 px saved).
+                                    */
+                                    className={`grid ${gridCols} gap-2 items-center px-1.5 py-1 rounded-lg ${
                                       cv ? "bg-blue-50 border border-blue-200"
                                         : outOfStock ? "bg-gray-50 opacity-50"
                                         : "bg-gray-50 border border-transparent"
                                     }`}
                                   >
-                                    <span className={`text-xs font-bold text-center px-1 py-0.5 rounded ${
-                                      cv ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"
-                                    }`}>
-                                      {variant.size || "—"}
-                                    </span>
+                                    {/* Size badge — only for showSize */}
+                                    {showSize && (
+                                      <span className={`text-[10px] font-bold text-center px-1 py-0.5 rounded ${
+                                        cv ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"
+                                      }`}>
+                                        {variant.size || "—"}
+                                      </span>
+                                    )}
 
+                                    {/* Price */}
                                     <div>
                                       <p className="text-xs font-semibold text-gray-800">
                                         ₹{(variant.rate || variant.mrp || product.price).toLocaleString("en-IN")}
                                       </p>
-                                      {vColor && (
-                                        <span className="flex items-center gap-1 text-[9px] text-gray-400">
-                                          <span
-                                            className="w-2 h-2 rounded-full border border-gray-200 flex-shrink-0"
-                                            style={{ backgroundColor: vColor.toLowerCase() }}
-                                          />
-                                          <span className="truncate max-w-[52px]">{vColor}</span>
-                                        </span>
-                                      )}
                                     </div>
 
+                                    {/* Qty — stepper when in cart, input when not */}
                                     {cv ? (
                                       <div className="flex items-center justify-center border border-blue-300 rounded overflow-hidden bg-white">
-                                        <button onClick={() => updateVariantQty(product.id, variant.id, cv.quantity - 1)}
-                                          className="px-1 py-0.5 text-blue-600 hover:bg-blue-50">
+                                        <button
+                                          onClick={() => updateVariantQty(product.id, variant.id, cv.quantity - 1)}
+                                          className="px-1 py-0.5 text-blue-600 hover:bg-blue-50"
+                                        >
                                           <Minus size={9} />
                                         </button>
                                         <span className="text-xs font-bold text-blue-700 min-w-[16px] text-center">
                                           {cv.quantity}
                                         </span>
-                                        <button onClick={() => updateVariantQty(product.id, variant.id, cv.quantity + 1)}
+                                        <button
+                                          onClick={() => updateVariantQty(product.id, variant.id, cv.quantity + 1)}
                                           disabled={cv.quantity >= variant.qty}
-                                          className="px-1 py-0.5 text-blue-600 hover:bg-blue-50 disabled:opacity-30">
+                                          className="px-1 py-0.5 text-blue-600 hover:bg-blue-50 disabled:opacity-30"
+                                        >
                                           <Plus size={9} />
                                         </button>
                                       </div>
@@ -471,15 +479,20 @@ const RetailerHome = () => {
                                       />
                                     )}
 
+                                    {/* Add / Remove button */}
                                     {cv ? (
-                                      <button onClick={() => removeVariant(product.id, variant.id)}
-                                        className="flex items-center justify-center h-6 w-6 mx-auto rounded text-red-400 hover:bg-red-50">
+                                      <button
+                                        onClick={() => removeVariant(product.id, variant.id)}
+                                        className="flex items-center justify-center h-6 w-6 mx-auto rounded text-red-400 hover:bg-red-50"
+                                      >
                                         <Trash2 size={11} />
                                       </button>
                                     ) : (
-                                      <button onClick={() => handleAddVariant(product, variant)}
+                                      <button
+                                        onClick={() => handleAddVariant(product, variant)}
                                         disabled={outOfStock}
-                                        className="text-[9px] px-1.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold disabled:opacity-30 transition-colors text-center">
+                                        className="w-full text-[9px] px-1 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold disabled:opacity-30 transition-colors text-center whitespace-nowrap"
+                                      >
                                         {outOfStock ? "Out" : "Add"}
                                       </button>
                                     )}
@@ -545,20 +558,6 @@ const RetailerHome = () => {
       </div>
 
       {/* ── Business-type-aware Cart Drawer ── */}
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cart={cart}
-        products={products}
-        cartTotal={cartTotal}
-        cartCount={cartCount}
-        isSubmitting={isSubmitting}
-        onPlaceOrder={handlePlaceOrder}
-        onRemoveVariant={removeVariant}
-        onUpdateVariantQty={updateVariantQty}
-        onRemoveProduct={removeFromCart}
-        getImageUrl={getImageUrl}
-      />
     </div>
   );
 };

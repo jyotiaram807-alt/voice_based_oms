@@ -12,7 +12,14 @@ interface ProductCardProps {
 }
 
 function resolveProductColor(product: Partial<Product>): string {
-  const c = (product as any).color || product.attributes?.color || "";
+  const c =
+    (product as any).color ||
+    product.attributes?.color ||
+    product.attributes?.Color ||
+    product.attributes?.colour ||
+    product.attributes?.Colour ||
+    (product as any).colour ||
+    "";
   return String(c).trim();
 }
 
@@ -30,6 +37,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const isOutOfStock = product.stock === 0;
   const productColor = resolveProductColor(product);
 
+  const attrPills = Object.entries(product.attributes ?? {})
+    .filter(([k, v]) => v && !["mrp", "size", "color", "Color", "colour", "Colour", "brand", "Brand", "model", "Model"].includes(k))
+    .slice(0, 2);
+
   const handleIncrement   = () => setQuantity((p) => Math.min(p + 1, product.stock));
   const handleDecrement   = () => setQuantity((p) => Math.max(p - 1, 0));
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,7 +51,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     if (quantity > 0) {
       addToCart(product, quantity);
       setQuantity(0);
-      setIsCartOpen(true); // open cart drawer after adding
+      setIsCartOpen(true);
     }
   };
   const handleCartQtyChange = (change: number) => {
@@ -60,7 +71,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       } ${cartVariant ? "border-blue-200 ring-1 ring-blue-100" : ""}`}>
 
         {/* Image */}
-        <div className="w-full h-36 bg-gray-50 border-b overflow-hidden flex-shrink-0 flex items-center justify-center">
+        <div className="w-full h-36 border-b overflow-hidden flex-shrink-0 flex items-center justify-center">
           {showImage ? (
             <img
               src={imageUrl} alt={product.name}
@@ -86,22 +97,29 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               ₹{product.price.toLocaleString("en-IN")}
             </span>
           </div>
-          
-          {/* Labeled attributes: Brand · Model + Color */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
-            {(product.brand || product.model) && (
+
+          {/* Brand · Model + Color */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+            {(product.brand || product.attributes?.brand || product.attributes?.Brand || product.model || product.attributes?.model || product.attributes?.Model) && (
               <div className="flex items-center gap-1 text-xs text-gray-500">
-                {product.brand && (
+                {(product.brand || product.attributes?.brand || product.attributes?.Brand) && (
                   <span>
                     <span className="text-gray-400">Brand:</span>{" "}
-                    <span className="font-medium text-gray-700">{product.brand}</span>
+                    <span className="font-medium text-gray-700">
+                      {product.brand || product.attributes?.brand || product.attributes?.Brand}
+                    </span>
                   </span>
                 )}
-                {product.brand && product.model && <span className="text-gray-300">·</span>}
-                {product.model && (
+                {(product.brand || product.attributes?.brand || product.attributes?.Brand) &&
+                 (product.model || product.attributes?.model || product.attributes?.Model) && (
+                  <span className="text-gray-300">·</span>
+                )}
+                {(product.model || product.attributes?.model || product.attributes?.Model) && (
                   <span>
                     <span className="text-gray-400">Model:</span>{" "}
-                    <span className="font-medium text-gray-700">{product.model}</span>
+                    <span className="font-medium text-gray-700">
+                      {product.model || product.attributes?.model || product.attributes?.Model}
+                    </span>
                   </span>
                 )}
               </div>
@@ -118,7 +136,21 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             )}
           </div>
 
-          {/* In-cart indicator — click to open drawer */}
+          {/* Attribute pills (RAM, Storage, etc.) */}
+          {attrPills.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {attrPills.map(([k, v]) => (
+                <span
+                  key={k}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium capitalize"
+                >
+                  {k} : {v}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* In-cart indicator */}
           {cartVariant && (
             <button
               onClick={() => setIsCartOpen(true)}

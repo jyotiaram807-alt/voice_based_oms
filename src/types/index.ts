@@ -92,6 +92,7 @@ export interface CartVariantItem {
 }
 
 export interface CartItem {
+  color: any;
   productId:       string;
   productName:     string;
   image:           string | null;

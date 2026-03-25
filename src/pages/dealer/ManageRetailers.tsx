@@ -275,34 +275,73 @@ const ManageRetailers = () => {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+
     try {
       const token = localStorage.getItem("token");
-      if (!token) { toast.error("Unauthorized: Token not found"); return; }
-      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      if (!token) {
+        toast.error("Unauthorized: Token not found");
+        return;
+      }
+
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      let res;
+
       if (isEditing && currentRetailer) {
-        const updateResponse = await fetch(`${apiUrl}/retailers/${currentRetailer.id}`, {
-          method: "PUT", headers, body: JSON.stringify(formData),
+        res = await fetch(`${apiUrl}/retailers/${currentRetailer.id}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(formData),
         });
-        if (!updateResponse.ok) throw new Error("Failed to update retailer");
-        toast.success("Retailer updated successfully");
       } else {
         formData.dealer_id = user?.id || "";
         formData.role = "retailer";
-        const createResponse = await fetch(`${apiUrl}/retailers`, {
-          method: "POST", headers, body: JSON.stringify(formData),
+
+        res = await fetch(`${apiUrl}/retailers`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(formData),
         });
-        if (!createResponse.ok) throw new Error("Failed to create retailer");
-        toast.success("Retailer added successfully");
       }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("API ERROR:", data);
+
+        // 🔥 Extract proper message
+        let message = "Something went wrong";
+
+        if (data?.messages?.error) {
+          message = data.messages.error;
+        } else if (data?.message) {
+          message = data.message;
+        }
+
+        if (message.includes("Duplicate entry") && message.includes("store_name")) {
+          message = "Store name already exists. Please use a different name.";
+        }
+
+        throw new Error(message);
+      }
+
+      toast.success(isEditing ? "Retailer updated successfully" : "Retailer added successfully");
+
       const listResponse = await fetch(`${apiUrl}/retailers?dealerid=${user?.id}`, { headers });
-      if (!listResponse.ok) throw new Error("Failed to fetch updated retailer list");
       const updatedList = await listResponse.json();
+
       setRetailers(updatedList);
       setFilteredRetailers(updatedList);
       setIsDialogOpen(false);
-    } catch (error) {
-      console.error("Error saving retailer:", error);
-      toast.error("Failed to save retailer");
+
+    } catch (error: any) {
+      console.error("FULL ERROR:", error);
+
+      // 🔥 Show exact DB error to user
+      toast.error(error.message);
     }
   };
 
