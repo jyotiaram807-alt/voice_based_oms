@@ -121,11 +121,11 @@ const Sidebar = () => {
     if (user?.role === "staff") {
       return (
         <>
-          <Link to="/staff/dashboard" className={linkClasses("/staff/dashboard")}>
+          <Link to="/staff" className={linkClasses("/staff/dashboard")}>
             <LayoutDashboard className="h-4 w-4" />
             Dashboard
           </Link>
-          <Link to="/staff" className={linkClasses("/staff")}>
+          <Link to="/staff/take_order" className={linkClasses("/take_order")}>
             <ClipboardList className="h-4 w-4" />
             Create Order
           </Link>

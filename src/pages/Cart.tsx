@@ -515,7 +515,7 @@ const Cart = () => {
                 )}
 
                 {/* Order line items */}
-                <div className="bg-gray-50 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                <div className="rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
                   {cart.items.map((item) =>
                     item.variants.map((v) => (
                       <div key={`${item.productId}_${v.variantId}`} className="flex justify-between text-sm">

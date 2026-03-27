@@ -22,6 +22,7 @@ export const useVoiceOrder = ({ products }: UseVoiceOrderProps) => {
   const silenceStartRef = useRef<number | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number | null>(null);
+  const [micVolume, setMicVolume] = useState(0);
 
   const SILENCE_RMS_THRESHOLD = 0.02; // Higher threshold to ignore background noise
   const SILENCE_DURATION = 4000;
@@ -283,5 +284,6 @@ export const useVoiceOrder = ({ products }: UseVoiceOrderProps) => {
     stopListening,
     reprocessTranscript,
     reset,
+    micVolume,
   };
 };

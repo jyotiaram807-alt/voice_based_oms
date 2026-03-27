@@ -55,8 +55,7 @@ const Navbar = () => {
       .toUpperCase();
 
   return (
-    <nav className="fixed top-0 left-0 lg:left-64 right-0 h-16 
-      bg-gray-50 border-b border-gray-200 
+    <nav className="fixed top-0 left-0 lg:left-64 right-0 h-16 border-b border-gray-200 
       flex items-center justify-between px-6 z-30">
 
       {/* LEFT SIDE — Page Title */}
