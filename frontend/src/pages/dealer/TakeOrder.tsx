@@ -44,7 +44,7 @@ interface Retailer {
 
 const TakeOrder = () => {
   const {
-    cart, addToCart, removeFromCart, removeVariant,
+    cart, addToCart, addVariantToCart, removeFromCart, removeVariant,
     updateQuantity, updateVariantQty,
     clearCart, cartTotal, cartCount,
   } = useCart();
@@ -166,25 +166,79 @@ const TakeOrder = () => {
       let addedCount = 0;
       parseResult.parsed.forEach((item) => {
         const product = products.find((p) => p.id === item.productId);
-        if (product) { addToCart(product, item.quantity); addedCount++; }
+        if (product) {
+          // Check if we have variant information and the product has variants
+          if (item.variantId !== undefined && item.variantId !== null && product.variants && product.variants.length > 0) {
+            // Find the matching variant
+            const variant = product.variants.find((v) => v.id === item.variantId);
+            if (variant) {
+              addVariantToCart(product, variant, item.quantity);
+              addedCount++;
+            } else {
+              // Variant ID not found, try to match by size string
+              const variantBySize = product.variants.find((v) => 
+                v.size?.toLowerCase().replace(/\s+/g, '') === item.variantSize?.toLowerCase().replace(/\s+/g, '')
+              );
+              if (variantBySize) {
+                addVariantToCart(product, variantBySize, item.quantity);
+                addedCount++;
+              } else {
+                // Fallback to adding base product
+                addToCart(product, item.quantity);
+                addedCount++;
+              }
+            }
+          } else if (item.variantSize && product.variants && product.variants.length > 0) {
+            // No variantId but we have variantSize, try to match by size
+            const variantBySize = product.variants.find((v) => 
+              v.size?.toLowerCase().replace(/\s+/g, '').includes(item.variantSize?.toLowerCase().replace(/\s+/g, '') || '') ||
+              item.variantSize?.toLowerCase().replace(/\s+/g, '').includes(v.size?.toLowerCase().replace(/\s+/g, '') || '')
+            );
+            if (variantBySize) {
+              addVariantToCart(product, variantBySize, item.quantity);
+              addedCount++;
+            } else {
+              addToCart(product, item.quantity);
+              addedCount++;
+            }
+          } else {
+            // No variant info, add as regular product
+            addToCart(product, item.quantity);
+            addedCount++;
+          }
+        }
       });
       if (addedCount > 0) toast.success(`Added ${addedCount} product(s) to cart`);
       resetVoice();
     } else if (voiceState === "fallback" || voiceState === "error") {
       setShowFallbackModal(true);
     }
-  }, [parseResult, voiceState, products, addToCart, resetVoice]);
+  }, [parseResult, voiceState, products, addToCart, addVariantToCart, resetVoice]);
 
   if (voiceState === "success" && parseResult && !showFallbackModal)
     setTimeout(() => handleVoiceAutoAdd(), 0);
   if ((voiceState === "fallback" || (voiceState === "error" && rawTranscript)) && !showFallbackModal)
     setTimeout(() => setShowFallbackModal(true), 0);
 
-  const handleConfirmItems = (items: { productId: string; quantity: number }[]) => {
+  const handleConfirmItems = (items: { productId: string; quantity: number; variantId?: number }[]) => {
     let count = 0;
-    items.forEach(({ productId, quantity }) => {
+    items.forEach(({ productId, quantity, variantId }) => {
       const p = products.find((x) => x.id === productId);
-      if (p) { addToCart(p, quantity); count++; }
+      if (p) {
+        if (variantId !== undefined && variantId !== null && p.variants && p.variants.length > 0) {
+          const variant = p.variants.find((v) => v.id === variantId);
+          if (variant) {
+            addVariantToCart(p, variant, quantity);
+            count++;
+          } else {
+            addToCart(p, quantity);
+            count++;
+          }
+        } else {
+          addToCart(p, quantity);
+          count++;
+        }
+      }
     });
     if (count > 0) toast.success(`Added ${count} product(s) to cart`);
     resetVoice();

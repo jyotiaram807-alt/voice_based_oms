@@ -10,7 +10,7 @@ import sys
 from typing import List, Dict, Any
 
 # Backend URL from environment
-BACKEND_URL = "https://voice-match-ai.preview.emergentagent.com"
+BACKEND_URL = "https://mixed-lang-cart.preview.emergentagent.com"
 API_ENDPOINT = f"{BACKEND_URL}/api/parse-voice-order"
 
 def create_test_products() -> List[Dict[str, Any]]:

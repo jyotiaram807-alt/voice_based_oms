@@ -139,11 +139,14 @@ export interface Order {
 // ── Voice ─────────────────────────────────────────────────────────────────────
 
 export interface VoiceParsedItem {
-  productId:   string;
-  productName: string;
-  quantity:    number;
-  confidence:  number;
-  matchReason: string;
+  productId:            string;
+  productName:          string;
+  quantity:             number;
+  confidence:           number;
+  matchReason:          string;
+  extractedAttributes?: Record<string, string>;
+  variantId?:           number;    // ID of matched variant, if any
+  variantSize?:         string;    // Size/config description for display
 }
 
 export interface VoiceUnmatchedSegment {

@@ -18,7 +18,7 @@ interface VoiceFallbackModalProps {
   rawTranscript: string;
   parseResult: VoiceParseResult | null;
   products: Product[];
-  onConfirmItems: (items: { productId: string; quantity: number }[]) => void;
+  onConfirmItems: (items: { productId: string; quantity: number; variantId?: number }[]) => void;
   onReprocess: (transcript: string) => void;
   errorMessage?: string;
 }
@@ -34,18 +34,28 @@ const VoiceFallbackModal = ({
   errorMessage,
 }: VoiceFallbackModalProps) => {
   const [editedTranscript, setEditedTranscript] = useState(rawTranscript);
+  // Use a composite key for items with variants: "productId" or "productId_variantId"
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>(() => {
     const map: Record<string, number> = {};
     parseResult?.parsed.forEach((p) => {
-      map[p.productId] = p.quantity;
+      const key = p.variantId ? `${p.productId}_${p.variantId}` : p.productId;
+      map[key] = p.quantity;
     });
     return map;
   });
 
   const handleConfirm = () => {
-    const items = Object.entries(itemQuantities)
+    const items: { productId: string; quantity: number; variantId?: number }[] = [];
+    Object.entries(itemQuantities)
       .filter(([_, qty]) => qty > 0)
-      .map(([productId, quantity]) => ({ productId, quantity }));
+      .forEach(([key, quantity]) => {
+        if (key.includes('_')) {
+          const [productId, variantId] = key.split('_');
+          items.push({ productId, quantity, variantId: parseInt(variantId) });
+        } else {
+          items.push({ productId: key, quantity });
+        }
+      });
     onConfirmItems(items);
     onClose();
   };
@@ -92,13 +102,24 @@ const VoiceFallbackModal = ({
               <div className="space-y-2">
                 {parseResult.parsed.map((item) => {
                   const product = products.find((p) => p.id === item.productId);
+                  const itemKey = item.variantId ? `${item.productId}_${item.variantId}` : item.productId;
+                  const displayName = item.variantSize 
+                    ? `${product?.name || item.productName} (${item.variantSize})`
+                    : (product?.name || item.productName);
                   return (
-                    <div key={item.productId} className="flex items-center justify-between rounded-lg bg-secondary/50 p-3">
+                    <div key={itemKey} className="flex items-center justify-between rounded-lg bg-secondary/50 p-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{product?.name || item.productName}</p>
-                        <Badge variant={item.confidence >= 0.7 ? "default" : "secondary"} className="text-[10px] mt-1">
-                          {Math.round(item.confidence * 100)}% match
-                        </Badge>
+                        <p className="text-sm font-medium truncate">{displayName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={item.confidence >= 0.7 ? "default" : "secondary"} className="text-[10px]">
+                            {Math.round(item.confidence * 100)}% match
+                          </Badge>
+                          {item.variantSize && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {item.variantSize}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 ml-3">
                         <Button
@@ -107,13 +128,13 @@ const VoiceFallbackModal = ({
                           className="h-7 w-7"
                           onClick={() => setItemQuantities((prev) => ({
                             ...prev,
-                            [item.productId]: Math.max(0, (prev[item.productId] || 1) - 1),
+                            [itemKey]: Math.max(0, (prev[itemKey] || 1) - 1),
                           }))}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
                         <span className="text-sm font-semibold w-6 text-center">
-                          {itemQuantities[item.productId] || 0}
+                          {itemQuantities[itemKey] || 0}
                         </span>
                         <Button
                           variant="outline"
@@ -121,7 +142,7 @@ const VoiceFallbackModal = ({
                           className="h-7 w-7"
                           onClick={() => setItemQuantities((prev) => ({
                             ...prev,
-                            [item.productId]: (prev[item.productId] || 0) + 1,
+                            [itemKey]: (prev[itemKey] || 0) + 1,
                           }))}
                         >
                           <Plus className="h-3 w-3" />
@@ -137,7 +158,7 @@ const VoiceFallbackModal = ({
           {parseResult?.unmatchedSegments && parseResult.unmatchedSegments.length > 0 && (
             <div className="rounded-lg bg-warning/10 p-3 text-sm text-warning-foreground">
               <p className="font-medium mb-1">Could not match:</p>
-              <p className="text-muted-foreground">{parseResult.unmatchedSegments.join(", ")}</p>
+              <p className="text-muted-foreground">{parseResult.unmatchedSegments.map(s => s.text).join(", ")}</p>
             </div>
           )}
         </div>

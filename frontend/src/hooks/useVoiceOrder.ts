@@ -50,7 +50,7 @@ export const useVoiceOrder = ({ products }: UseVoiceOrderProps) => {
 
   const parseWithAI = useCallback(async (transcript: string): Promise<VoiceParseResult> => {
     try {
-      // Prepare product data for the API
+      // Prepare product data for the API including variant information
       const productData = products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -60,6 +60,15 @@ export const useVoiceOrder = ({ products }: UseVoiceOrderProps) => {
         stock: p.stock,
         color: p.color || null,
         attributes: p.attributes || null,
+        variants: p.variants?.map((v) => ({
+          id: v.id,
+          size: v.size || null,
+          color: v.color || null,
+          qty: v.qty,
+          mrp: v.mrp,
+          rate: v.rate,
+          rack: v.rack || null,
+        })) || null,
       }));
 
       // Call our new intelligent backend API

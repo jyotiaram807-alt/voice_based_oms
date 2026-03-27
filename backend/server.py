@@ -39,6 +39,15 @@ class StatusCheckCreate(BaseModel):
 
 
 # Voice Order Parsing Models
+class ProductVariantInfo(BaseModel):
+    id: int
+    size: Optional[str] = None
+    color: Optional[str] = None
+    qty: Optional[int] = None
+    mrp: Optional[float] = None
+    rate: Optional[float] = None
+    rack: Optional[str] = None
+
 class ProductInfo(BaseModel):
     id: str
     name: str
@@ -48,6 +57,7 @@ class ProductInfo(BaseModel):
     stock: Optional[int] = None
     color: Optional[str] = None
     attributes: Optional[Dict[str, str]] = None
+    variants: Optional[List[ProductVariantInfo]] = None
 
 class VoiceParseRequest(BaseModel):
     transcript: str
@@ -60,6 +70,8 @@ class VoiceParsedItem(BaseModel):
     confidence: float
     matchReason: str
     extractedAttributes: Optional[Dict[str, str]] = None
+    variantId: Optional[int] = None  # ID of matched variant, if any
+    variantSize: Optional[str] = None  # Size description for display
 
 class VoiceUnmatchedSegment(BaseModel):
     text: str
@@ -110,25 +122,35 @@ def extract_quantity_from_text(text: str) -> tuple:
         'dozen': 12, 'pair': 2, 'couple': 2,
     }
     
+    # Hindi unit words (piece, pack, etc.) - will be removed after quantity extraction
+    hindi_units = ['पीस', 'पीसेज', 'पैक', 'पैकेट', 'बॉक्स', 'बोतल', 'यूनिट', 'नग', 'दाना']
+    
     quantity = 1  # Default quantity
     remaining_text = text
     
-    # Try to find numeric quantity at the beginning or end
-    # Pattern: "5 products" or "products 5"
-    num_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:piece|pieces|pack|packs|box|boxes|bottle|bottles|unit|units|kg|g|ml|l|liter|litre)?', text)
-    if num_match:
-        quantity = float(num_match.group(1))
-        if quantity == int(quantity):
-            quantity = int(quantity)
-        remaining_text = text[:num_match.start()] + text[num_match.end():]
+    # Try to find numeric quantity with Hindi units like "4 पीस"
+    hindi_unit_pattern = r'(\d+)\s*(?:' + '|'.join(hindi_units) + r'|piece|pieces|pack|packs|box|boxes|bottle|bottles|unit|units|pcs|nos)'
+    hindi_match = re.search(hindi_unit_pattern, text, re.IGNORECASE)
+    if hindi_match:
+        quantity = int(hindi_match.group(1))
+        remaining_text = text[:hindi_match.start()] + text[hindi_match.end():]
     else:
-        # Try word-based numbers
-        for word, num in word_to_num.items():
-            pattern = r'\b' + word + r'\b'
-            if re.search(pattern, text):
-                quantity = num
-                remaining_text = re.sub(pattern, '', text)
-                break
+        # Try to find numeric quantity at the beginning or end
+        # Pattern: "5 products" or "products 5"
+        num_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:piece|pieces|pack|packs|box|boxes|bottle|bottles|unit|units|kg|g|ml|l|liter|litre)?', text)
+        if num_match:
+            quantity = float(num_match.group(1))
+            if quantity == int(quantity):
+                quantity = int(quantity)
+            remaining_text = text[:num_match.start()] + text[num_match.end():]
+        else:
+            # Try word-based numbers
+            for word, num in word_to_num.items():
+                pattern = r'\b' + word + r'\b'
+                if re.search(pattern, text):
+                    quantity = num
+                    remaining_text = re.sub(pattern, '', text)
+                    break
     
     return quantity, remaining_text.strip()
 
@@ -258,7 +280,7 @@ async def parse_with_ai(transcript: str, products: List[ProductInfo]) -> VoicePa
         if not api_key:
             raise ValueError("EMERGENT_LLM_KEY not configured")
         
-        # Create product catalog string for context
+        # Create product catalog string for context with variant information
         product_catalog = []
         for p in products:
             entry = f"ID: {p.id}, Name: {p.name}"
@@ -270,6 +292,14 @@ async def parse_with_ai(transcript: str, products: List[ProductInfo]) -> VoicePa
                 entry += f", Color: {p.color}"
             if p.attributes:
                 entry += f", Attributes: {json.dumps(p.attributes)}"
+            # Include variant information (RAM/Storage combinations)
+            if p.variants and len(p.variants) > 0:
+                variant_list = []
+                for v in p.variants:
+                    if v.size:
+                        variant_list.append(f"variant_id={v.id}, size=\"{v.size}\"")
+                if variant_list:
+                    entry += f", Variants: [{', '.join(variant_list)}]"
             product_catalog.append(entry)
         
         catalog_text = "\n".join(product_catalog)
@@ -278,10 +308,34 @@ async def parse_with_ai(transcript: str, products: List[ProductInfo]) -> VoicePa
 
 Your task is to:
 1. Parse spoken product orders from natural language
-2. Extract product names, quantities, and any attributes (size, color, etc.)
+2. Extract product names, quantities, and any attributes (size, color, RAM, Storage, etc.)
 3. Match extracted items with products from the provided catalog
 4. Handle fuzzy/approximate product name matches intelligently
 5. Understand Hindi/English mixed speech (Hinglish) common in Indian retail
+6. CRITICALLY: Handle "product name mentioned once, then multiple configurations" pattern
+
+CRITICAL PATTERN - MULTIPLE CONFIGURATIONS FOR SAME PRODUCT:
+When a user says something like:
+- "सैमसंग गैलेक्सी A25 6GB 128GB 4 पीस 4GB 64GB 5 पीस" (Samsung Galaxy A25 6GB 128GB 4 pieces, 4GB 64GB 5 pieces)
+- "iPhone 15 128GB 2 units 256GB 3 units"
+- "Galaxy A25 6GB 128GB wala 4 aur 4GB 64GB wala 5"
+
+You MUST:
+1. Identify the product name ONCE (e.g., "Samsung Galaxy A25")
+2. Create SEPARATE parsed_items for EACH configuration mentioned:
+   - Samsung Galaxy A25 (6GB/128GB) quantity 4
+   - Samsung Galaxy A25 (4GB/64GB) quantity 5
+3. Match each configuration to the correct variant_id from the product's variants
+
+VARIANT MATCHING for Electronics (Phones, Tablets, etc.):
+- RAM/Storage patterns: "6GB 128GB", "4GB/64GB", "6 GB 128 GB", "6gb/128gb"
+- Match these to product variants where size field contains RAM/Storage info
+- Return variant_id for matched variant
+
+HINDI QUANTITY AND UNIT WORDS:
+- पीस/piece(s) = piece/unit
+- Numbers: एक=1, दो=2, तीन=3, चार=4, पांच=5, छह=6, सात=7, आठ=8, नौ=9, दस=10
+- Transliterated Hindi: ek=1, do=2, teen=3, char=4, paanch=5, chhe=6, saat=7, aath=8, nau=9, das=10
 
 CRITICAL RULES for matching:
 - Users may speak brand names, product names, or nicknames
@@ -289,6 +343,8 @@ CRITICAL RULES for matching:
 - Numbers can be spoken as words (one, two) or Hindi (ek, do, teen, char, paanch, chhe, saat, aath, nau, das)
 - Default quantity is 1 if not specified
 - Be VERY flexible with spelling/pronunciation variations:
+  * "samsung/सैमसंग" -> Samsung
+  * "galaxy/गैलेक्सी" -> Galaxy
   * "pasta/paste/pest" -> toothpaste
   * "paras/piras/pears" -> Pears (soap brand)
   * "closeup/close up" -> Close Up
@@ -296,14 +352,13 @@ CRITICAL RULES for matching:
   * "bournvita/bonvita/bournwita" -> Bournvita
   * "parle g/parleg/parle ji" -> Parle-G
 - PHONETIC MATCHING: Match words that SOUND similar even if spelled differently
-- Look for size/color mentions like "red", "large", "500ml", "bada", "chhota" etc.
-- Common Hindi terms: "dena" (give), "chahiye" (want), "aur" (and), "bhi" (also)
-- Variations in brand names due to accents should still match
+- Common Hindi terms: "dena" (give), "chahiye" (want), "aur" (and), "bhi" (also), "wala" (variant indicator)
 
 ATTRIBUTE RECOGNITION:
+- RAM: 2GB, 3GB, 4GB, 6GB, 8GB, 12GB, etc.
+- Storage: 32GB, 64GB, 128GB, 256GB, 512GB, 1TB, etc.
 - Sizes: small/chhota, medium/madhyam, large/bada, XL, XXL, 100g, 500ml, 1kg, etc.
 - Colors: red/laal, blue/neela, green/hara, black/kala, white/safed, etc.
-- When attributes are mentioned, prefer products with matching attributes
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -311,10 +366,22 @@ Respond ONLY with valid JSON in this exact format:
     {
       "product_id": "actual_product_id_from_catalog",
       "product_name": "matched product name",
-      "quantity": 2,
-      "confidence": 0.85,
-      "match_reason": "Brand name 'Colgate' matched to 'Colgate Strong Teeth 100g'",
-      "extracted_attributes": {"size": "100g", "color": null}
+      "quantity": 4,
+      "confidence": 0.90,
+      "match_reason": "Samsung Galaxy A25 with 6GB/128GB configuration matched",
+      "extracted_attributes": {"ram": "6GB", "storage": "128GB"},
+      "variant_id": 123,
+      "variant_size": "6GB/128GB"
+    },
+    {
+      "product_id": "actual_product_id_from_catalog",
+      "product_name": "matched product name",
+      "quantity": 5,
+      "confidence": 0.90,
+      "match_reason": "Samsung Galaxy A25 with 4GB/64GB configuration matched",
+      "extracted_attributes": {"ram": "4GB", "storage": "64GB"},
+      "variant_id": 124,
+      "variant_size": "4GB/64GB"
     }
   ],
   "unmatched_segments": [
@@ -328,7 +395,8 @@ Respond ONLY with valid JSON in this exact format:
 
 If no products can be matched, return parsed_items as empty array.
 Always provide confidence between 0.0 and 1.0 based on match quality.
-Be AGGRESSIVE in matching - prefer a match with lower confidence over no match."""
+Be AGGRESSIVE in matching - prefer a match with lower confidence over no match.
+When matching variants, always include variant_id and variant_size in the response."""
 
         user_prompt = f"""Parse this voice order and match with available products:
 
@@ -337,7 +405,9 @@ VOICE TRANSCRIPT: "{transcript}"
 PRODUCT CATALOG:
 {catalog_text}
 
-Extract all products mentioned with quantities and match them to the catalog. Handle fuzzy names intelligently."""
+Extract all products mentioned with quantities and match them to the catalog. 
+Handle fuzzy names intelligently.
+IMPORTANT: If multiple configurations/variants are mentioned for the same product, create SEPARATE entries for each configuration."""
 
         chat = LlmChat(
             api_key=api_key,
@@ -371,13 +441,19 @@ Extract all products mentioned with quantities and match them to the catalog. Ha
                 if not cleaned_attrs:
                     cleaned_attrs = None
             
+            # Extract variant information
+            variant_id = item.get("variant_id")
+            variant_size = item.get("variant_size")
+            
             parsed_items.append(VoiceParsedItem(
                 productId=str(item["product_id"]),
                 productName=item["product_name"],
                 quantity=int(item.get("quantity", 1)),
                 confidence=float(item.get("confidence", 0.7)),
                 matchReason=item.get("match_reason", "AI matched"),
-                extractedAttributes=cleaned_attrs
+                extractedAttributes=cleaned_attrs,
+                variantId=int(variant_id) if variant_id is not None else None,
+                variantSize=variant_size
             ))
         
         unmatched = []
